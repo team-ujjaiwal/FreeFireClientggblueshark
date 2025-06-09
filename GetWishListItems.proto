@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package proto;
+
+message CSGetWishListItemsReq {
+    uint64 account_id = 1;
+}
+
+message WishItemInfo {
+    uint32 item_id = 1;
+    uint64 release_time = 2;
+}
+
+message CSGetWishListItemsRes {
+    repeated WishItemInfo items = 1;
+}
