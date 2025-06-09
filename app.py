@@ -1,4 +1,4 @@
-from flask import Flask, jsonify
+from flask import Flask, request, jsonify
 import requests
 import urllib3
 from Crypto.Cipher import AES
@@ -11,10 +11,10 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 app = Flask(__name__)
 
-# Replace with your own valid JWT token (login account, not guest)
-BASE64_TOKEN = "eyJhbGciOiJIUzI1NiIsInN2ciI6IjMiLCJ0eXAiOiJKV1QifQ.eyJhY2NvdW50X2lkIjoxMjI2NDk5OTcyNSwibmlja25hbWUiOiLKmeG0j-G0m-G0gOG0heG0jcmqybQiLCJub3RpX3JlZ2lvbiI6IklORCIsImxvY2tfcmVnaW9uIjoiSU5EIiwiZXh0ZXJuYWxfaWQiOiI3ZjEwNjQ3MzBkMmVkYjc5N2Y3OGUwOGU3MTNiMTBjMCIsImV4dGVybmFsX3R5cGUiOjQsInBsYXRfaWQiOjAsImNsaWVudF92ZXJzaW9uIjoiIiwiZW11bGF0b3Jfc2NvcmUiOjEwMCwiaXNfZW11bGF0b3IiOnRydWUsImNvdW50cnlfY29kZSI6IlVTIiwiZXh0ZXJuYWxfdWlkIjozOTU5Nzg4NDI0LCJyZWdfYXZhdGFyIjoxMDIwMDAwMDcsInNvdXJjZSI6MCwibG9ja19yZWdpb25fdGltZSI6MTc0OTE5NDI1MywiY2xpZW50X3R5cGUiOjEsInNpZ25hdHVyZV9tZDUiOiIiLCJ1c2luZ192ZXJzaW9uIjowLCJyZWxlYXNlX2NoYW5uZWwiOiIiLCJyZWxlYXNlX3ZlcnNpb24iOiJPQjQ5IiwiZXhwIjoxNzQ5NTA1ODMyfQ.tRyqqR_OSk3ZhAeYv8me5qEO0ASkc8nXQS9tPKVxMbs"
+# Use your working token here
+BASE64_TOKEN = "your_token_here"
 
-# UID encryption function
+# Encrypt UID function
 def Encrypt_ID(uid):
     uid = int(uid)
     dec = [f"{i:02x}" for i in range(128, 256)]
@@ -38,7 +38,7 @@ def Encrypt_ID(uid):
                 return dec[n] + dec[z] + dec[y] + xxx[int(x)]
     return None
 
-# AES CBC encryption
+# AES Encryption
 def encrypt_api(plain_hex):
     plain_bytes = bytes.fromhex(plain_hex)
     key = bytes([89, 103, 38, 116, 99, 37, 68, 69, 117, 104, 54, 37, 90, 99, 94, 56])
@@ -47,31 +47,37 @@ def encrypt_api(plain_hex):
     cipher_text = cipher.encrypt(pad(plain_bytes, AES.block_size))
     return cipher_text.hex()
 
-# Timestamp to readable
+# Timestamp formatting
 def convert_timestamp(ts):
     try:
-        return datetime.utcfromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
+        return datetime.utcfromtimestamp(ts).strftime('%Y-%m-%d %I:%M:%S %p')
     except Exception:
         return "Invalid Timestamp"
 
-# /wishlist/<uid> API
-@app.route('/wishlist/<int:uid>', methods=['GET'])
-def get_wishlist(uid):
-    encrypted_id = Encrypt_ID(uid)
+# New endpoint
+@app.route('/wishlist-info', methods=['GET'])
+def wishlist_info():
+    uid = request.args.get("uid")
+    region = request.args.get("region", "ind").lower()
+
+    if not uid or not uid.isdigit():
+        return jsonify({"error": "Invalid UID"}), 400
+
+    encrypted_id = Encrypt_ID(int(uid))
     if not encrypted_id:
-        return jsonify({"error": "UID encryption failed"}), 400
+        return jsonify({"error": "UID encryption failed"}), 500
 
     encrypted_payload = encrypt_api(f"08{encrypted_id}1007")
     payload = bytes.fromhex(encrypted_payload)
 
-    url = "https://client.ind.freefiremobile.com/GetWishListItems"
+    url = f"https://client.{region}.freefiremobile.com/GetWishListItems"
     headers = {
         "Authorization": f"Bearer {BASE64_TOKEN}",
         "X-Unity-Version": "2018.4.11f1",
         "X-GA": "v1 1",
         "ReleaseVersion": "OB49",
         "Content-Type": "application/x-www-form-urlencoded",
-        "User-Agent": "Dalvik/2.1.0 (Linux; U; Android 9; SM-N975F Build/PI)",
+        "User-Agent": "Dalvik/2.1.0 (Linux; Android 10)",
         "Host": "clientbp.common.ggbluefox.com",
         "Connection": "close",
         "Accept-Encoding": "gzip, deflate, br",
@@ -82,22 +88,26 @@ def get_wishlist(uid):
         decoded = CSGetWishListItemsRes()
         decoded.ParseFromString(res.content)
 
-        wishlist = [
-            {
+        wishlist = []
+        for item in decoded.items:
+            wishlist.append({
                 "item_id": item.item_id,
+                "uid": uid,
+                "total_item": str(len(decoded.items)),
                 "release_time": convert_timestamp(item.release_time)
-            } for item in decoded.items
-        ]
+            })
 
         return jsonify({
-            "uid": uid,
-            "wishlist": wishlist,
-            "total_items": len(wishlist)
+            "results": [
+                {
+                    "wishlist": wishlist
+                }
+            ]
         })
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# Start app
+# Run server
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5000)
