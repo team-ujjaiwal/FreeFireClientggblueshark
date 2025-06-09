@@ -64,7 +64,7 @@ def get_wishlist(uid):
     encrypted_payload = encrypt_api(f"08{encrypted_id}1007")
     payload = bytes.fromhex(encrypted_payload)
 
-    url = "https://clientbp.ggblueshark.com/GetWishListItems"
+    url = "https://client.ind.freefiremobile.com/GetWishListItems"
     headers = {
         "Authorization": f"Bearer {BASE64_TOKEN}",
         "X-Unity-Version": "2018.4.11f1",
