@@ -70,7 +70,7 @@ def wishlist_info():
     encrypted_payload = encrypt_api(f"08{encrypted_id}1007")
     payload = bytes.fromhex(encrypted_payload)
 
-    url = f"https://client.{region}.freefiremobile.com/GetWishListItems"
+    url = f"https://clientbp.ggblueshark.com/GetWishListItems"
     headers = {
         "Authorization": f"Bearer {BASE64_TOKEN}",
         "X-Unity-Version": "2018.4.11f1",
@@ -79,7 +79,7 @@ def wishlist_info():
         "Content-Type": "application/x-www-form-urlencoded",
         "User-Agent": "Dalvik/2.1.0 (Linux; Android 10)",
         "Host": "clientbp.common.ggbluefox.com",
-        "Connection": "close",
+        "Connection": "Keep-Alive",
         "Accept-Encoding": "gzip, deflate, br",
     }
 
