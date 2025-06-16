@@ -4,6 +4,8 @@ import urllib3
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad
 from datetime import datetime
+import binascii
+import struct
 from GetWishListItems_pb2 import CSGetWishListItemsRes
 
 # Disable SSL warnings
@@ -11,50 +13,82 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 app = Flask(__name__)
 
-# Use your working token here
+# Your working token
 BASE64_TOKEN = "eyJhbGciOiJIUzI1NiIsInN2ciI6IjMiLCJ0eXAiOiJKV1QifQ.eyJhY2NvdW50X2lkIjoxMjI2NDk5OTcyNSwibmlja25hbWUiOiLKmeG0j-G0m-G0gOG0heG0jcmqybQiLCJub3RpX3JlZ2lvbiI6IklORCIsImxvY2tfcmVnaW9uIjoiSU5EIiwiZXh0ZXJuYWxfaWQiOiI3ZjEwNjQ3MzBkMmVkYjc5N2Y3OGUwOGU3MTNiMTBjMCIsImV4dGVybmFsX3R5cGUiOjQsInBsYXRfaWQiOjAsImNsaWVudF92ZXJzaW9uIjoiIiwiZW11bGF0b3Jfc2NvcmUiOjEwMCwiaXNfZW11bGF0b3IiOnRydWUsImNvdW50cnlfY29kZSI6IlVTIiwiZXh0ZXJuYWxfdWlkIjozOTU5Nzg4NDI0LCJyZWdfYXZhdGFyIjoxMDIwMDAwMDcsInNvdXJjZSI6MCwibG9ja19yZWdpb25fdGltZSI6MTc0OTE5NDI1MywiY2xpZW50X3R5cGUiOjEsInNpZ25hdHVyZV9tZDUiOiIiLCJ1c2luZ192ZXJzaW9uIjowLCJyZWxlYXNlX2NoYW5uZWwiOiIiLCJyZWxlYXNlX3ZlcnNpb24iOiJPQjQ5IiwiZXhwIjoxNzUwMTA3OTk5fQ.zM0kP3mMu9eSQjbGKi-u7f_bLDxtSkpBWuXro1UgILc"
 
-# Encrypt UID function
+# Protobuf message definition (simplified)
+class CSGetWishListItemsRes:
+    def __init__(self):
+        self.items = []
+    
+    def ParseFromString(self, data):
+        # Simple parser for demonstration - replace with actual protobuf parsing
+        try:
+            # This is a simplified parser - actual implementation depends on the real protobuf structure
+            pos = 0
+            while pos < len(data):
+                field_number = data[pos] >> 3
+                wire_type = data[pos] & 0x07
+                pos += 1
+                
+                if wire_type == 2:  # Length-delimited
+                    length = data[pos]
+                    pos += 1
+                    field_data = data[pos:pos+length]
+                    pos += length
+                    
+                    if field_number == 1:  # Assuming field 1 is item_id
+                        item = {"item_id": int.from_bytes(field_data, byteorder='little')}
+                        self.items.append(item)
+        except Exception as e:
+            print(f"Error parsing protobuf: {e}")
+
 def Encrypt_ID(uid):
-    uid = int(uid)
-    dec = [f"{i:02x}" for i in range(128, 256)]
-    xxx = [f"{i:02x}" for i in range(1, 128)]
-    x = uid / 128
-    if x > 128:
-        x /= 128
+    try:
+        uid = int(uid)
+        dec = [f"{i:02x}" for i in range(128, 256)]
+        xxx = [f"{i:02x}" for i in range(1, 128)]
+        
+        x = uid / 128
         if x > 128:
             x /= 128
             if x > 128:
                 x /= 128
-                m = int((((((x - int(x)) * 128) % 1) * 128) % 1) * 128)
-                n = int(((((x - int(x)) * 128) % 1) * 128))
-                z = int(((x - int(x)) * 128))
-                y = int(x * 128 % 128)
-                return dec[m] + dec[n] + dec[z] + dec[y] + xxx[int(x)]
-            else:
-                n = int(((((x - int(x)) * 128) % 1) * 128))
-                z = int(((x - int(x)) * 128))
-                y = int(x * 128 % 128)
-                return dec[n] + dec[z] + dec[y] + xxx[int(x)]
-    return None
+                if x > 128:
+                    x /= 128
+                    m = int((((((x - int(x)) * 128) % 1) * 128) % 1) * 128)
+                    n = int(((((x - int(x)) * 128) % 1) * 128)
+                    z = int(((x - int(x)) * 128))
+                    y = int(x * 128 % 128)
+                    return dec[m] + dec[n] + dec[z] + dec[y] + xxx[int(x)]
+                else:
+                    n = int(((((x - int(x)) * 128) % 1) * 128)
+                    z = int(((x - int(x)) * 128)
+                    y = int(x * 128 % 128)
+                    return dec[n] + dec[z] + dec[y] + xxx[int(x)]
+        return None
+    except Exception as e:
+        print(f"Encryption error: {e}")
+        return None
 
-# AES Encryption
 def encrypt_api(plain_hex):
-    plain_bytes = bytes.fromhex(plain_hex)
-    key = bytes([89, 103, 38, 116, 99, 37, 68, 69, 117, 104, 54, 37, 90, 99, 94, 56])
-    iv = bytes([54, 111, 121, 90, 68, 114, 50, 50, 69, 51, 121, 99, 104, 106, 77, 37])
-    cipher = AES.new(key, AES.MODE_CBC, iv)
-    cipher_text = cipher.encrypt(pad(plain_bytes, AES.block_size))
-    return cipher_text.hex()
+    try:
+        plain_bytes = bytes.fromhex(plain_hex)
+        key = bytes([89, 103, 38, 116, 99, 37, 68, 69, 117, 104, 54, 37, 90, 99, 94, 56])
+        iv = bytes([54, 111, 121, 90, 68, 114, 50, 50, 69, 51, 121, 99, 104, 106, 77, 37])
+        cipher = AES.new(key, AES.MODE_CBC, iv)
+        cipher_text = cipher.encrypt(pad(plain_bytes, AES.block_size))
+        return cipher_text.hex()
+    except Exception as e:
+        print(f"Encryption failed: {e}")
+        return None
 
-# Timestamp formatting
 def convert_timestamp(ts):
     try:
         return datetime.utcfromtimestamp(ts).strftime('%Y-%m-%d %I:%M:%S %p')
     except Exception:
         return "Invalid Timestamp"
 
-# New endpoint
 @app.route('/wishlist-info', methods=['GET'])
 def wishlist_info():
     uid = request.args.get("uid")
@@ -63,14 +97,28 @@ def wishlist_info():
     if not uid or not uid.isdigit():
         return jsonify({"error": "Invalid UID"}), 400
 
-    encrypted_id = Encrypt_ID(int(uid))
+    encrypted_id = Encrypt_ID(uid)
     if not encrypted_id:
         return jsonify({"error": "UID encryption failed"}), 500
 
     encrypted_payload = encrypt_api(f"08{encrypted_id}1007")
+    if not encrypted_payload:
+        return jsonify({"error": "Payload encryption failed"}), 500
+
     payload = bytes.fromhex(encrypted_payload)
 
-    url = f"https://client.ind.freefiremobile.com/GetWishListItems"
+    # Dynamic region handling
+    region_hosts = {
+        "ind": "client.ind.freefiremobile.com",
+        "br": "client.br.freefiremobile.com",
+        "na": "client.na.freefiremobile.com",
+        "eu": "client.eu.freefiremobile.com",
+        "mena": "client.mena.freefiremobile.com"
+    }
+    
+    host = region_hosts.get(region, "client.ind.freefiremobile.com")
+    url = f"https://{host}/GetWishListItems"
+
     headers = {
         "Authorization": f"Bearer {BASE64_TOKEN}",
         "X-Unity-Version": "2018.4.11f1",
@@ -78,36 +126,54 @@ def wishlist_info():
         "ReleaseVersion": "OB49",
         "Content-Type": "application/x-www-form-urlencoded",
         "User-Agent": "Dalvik/2.1.0 (Linux; Android 10)",
-        "Host": "clientbp.ggblueshark.com",
+        "Host": host,
         "Connection": "Keep-Alive",
         "Accept-Encoding": "gzip, deflate, br",
     }
 
     try:
+        print(f"Sending request to: {url}")
+        print(f"Payload: {binascii.hexlify(payload)}")
+        
         res = requests.post(url, headers=headers, data=payload, verify=False, timeout=10)
+        
+        print(f"Response status: {res.status_code}")
+        print(f"Response hex: {binascii.hexlify(res.content)}")
+        
+        if res.status_code != 200:
+            return jsonify({
+                "error": f"API request failed with status {res.status_code}",
+                "response": res.text
+            }), res.status_code
+
         decoded = CSGetWishListItemsRes()
         decoded.ParseFromString(res.content)
+        
+        if not decoded.items:
+            return jsonify({"error": "No items found in wishlist"}), 404
 
         wishlist = []
         for item in decoded.items:
             wishlist.append({
-                "item_id": item.item_id,
+                "item_id": item.get("item_id", "N/A"),
                 "uid": uid,
-                "total_item": str(len(decoded.items)),
-                "release_time": convert_timestamp(item.release_time)
+                "total_items": len(decoded.items),
+                "release_time": convert_timestamp(item.get("release_time", 0))
             })
 
         return jsonify({
-            "results": [
-                {
-                    "wishlist": wishlist
-                }
-            ]
+            "status": "success",
+            "data": {
+                "wishlist": wishlist,
+                "total_items": len(decoded.items)
+            }
         })
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({
+            "error": str(e),
+            "message": "Failed to process wishlist request"
+        }), 500
 
-# Run server
 if __name__ == '__main__':
-    app.run(host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=5000, debug=True)
